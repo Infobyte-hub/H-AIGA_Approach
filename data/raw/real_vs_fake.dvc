@@ -1,0 +1,6 @@
+outs:
+- md5: 87dcec78a4768f3352f68fa2ae25ff06.dir
+  size: 4015459876
+  nfiles: 140000
+  hash: md5
+  path: real_vs_fake
