@@ -1,4 +1,26 @@
 .venv/
 data/raw/*
 !data/raw/*.dvc
+# Arquivos de Sistema e Metadados (Windows/WSL)
+*.Identifier
+.DS_Store
+Thumbs.db
 
+# Python e Ambiente
+__pycache__/
+*.pyc
+# Modelos e Pesos (Bloqueio por tamanho)
+experiments/ma3/checkpoints/*.keras
+*.keras
+*.h5
+# Datasets (Não subir imagens brutas)
+data/raw/
+!data/raw/*.dvc
+# Métricas e Logs temporários
+experiments/ma3/metrics/
+.ipynb_checkpoints/
+
+# Opcional: Ignorar os testes_ma3 brutos, mas manter resultados_gradcam
+# Se quiser subir as fotos de teste, ignore esta linha:
+# testes_ma3/fake/
+# testes_ma3/real/
