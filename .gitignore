@@ -1,26 +1,56 @@
+# =========================
+# Ambiente
+# =========================
 .venv/
-data/raw/*
-!data/raw/*.dvc
-# Arquivos de Sistema e Metadados (Windows/WSL)
-*.Identifier
-.DS_Store
-Thumbs.db
-
-# Python e Ambiente
 __pycache__/
 *.pyc
-# Modelos e Pesos (Bloqueio por tamanho)
-experiments/ma3/checkpoints/*.keras
-*.keras
-*.h5
-# Datasets (Não subir imagens brutas)
-data/raw/
-!data/raw/*.dvc
-# Métricas e Logs temporários
-experiments/ma3/metrics/
 .ipynb_checkpoints/
 
-# Opcional: Ignorar os testes_ma3 brutos, mas manter resultados_gradcam
-# Se quiser subir as fotos de teste, ignore esta linha:
-# testes_ma3/fake/
-# testes_ma3/real/
+# =========================
+# Sistema
+# =========================
+.DS_Store
+Thumbs.db
+*.Identifier
+
+# =========================
+# Modelos (pesados)
+# =========================
+*.keras
+*.h5
+experiments/ma3/checkpoints/
+
+# =========================
+# Datasets (NÃO versionar)
+# =========================
+data/raw/
+dataset-subsampled/
+testes_ma3/fake/
+testes_ma3/real/
+# Amostras locais sensíveis (não versionar)
+Macro Atividade 3- Seleção, Treinamento e Reprodutibilidade do Modelo/amostras_fake/
+Macro Atividade 3- Seleção, Treinamento e Reprodutibilidade do Modelo/amostras_real/
+Macro Atividade 3- Seleção, Treinamento e Reprodutibilidade do Modelo/auditoria_pixels_ig/
+# =========================
+# Resultados e métricas (MA5)
+# =========================
+results/
+**/results/
+*.csv
+*.png
+*.jpg
+
+# =========================
+# Gradio runtime
+# =========================
+.gradio/
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# DVC (se usar)
+# =========================
+!data/raw/*.dvc
