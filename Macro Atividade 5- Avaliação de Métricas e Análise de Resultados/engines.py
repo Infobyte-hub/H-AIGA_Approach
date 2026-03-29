@@ -21,18 +21,15 @@ class FairnessEngine:
 
         cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
 
-        # Classe 0 = fake | Classe 1 = real
-        FP = cm[0][1]  # marcou real em fake
-        FN = cm[1][0]  # marcou fake em real
+        FP = cm[0][1]
+        FN = cm[1][0]
 
-        # Normalização por classe (evita distorção)
         total_fake = np.sum(y_true == 0) + 1e-6
         total_real = np.sum(y_true == 1) + 1e-6
 
         rate_fp = FP / total_fake
         rate_fn = FN / total_real
 
-        # Gap de equidade
         fairness = abs(rate_fn - rate_fp)
 
         return fairness
@@ -54,17 +51,41 @@ class RiskEngine:
         total_fake = np.sum(y_true == 0) + 1e-6
         total_real = np.sum(y_true == 1) + 1e-6
 
-        # 🔥 Penalização maior para erro em REAL (FN)
         rate_fp = FP / total_fake
         rate_fn = FN / total_real
 
-        # Peso maior para erro crítico (real class)
         risk = (0.7 * rate_fn) + (0.3 * rate_fp)
 
-        # 🔥 Não linearidade (tolerância a erro pequeno)
+        # não linearidade
         risk = np.power(risk, 2)
 
         return risk
+
+
+# =========================
+# COMPLIANCE ENGINE (NOVO)
+# =========================
+class ComplianceEngine:
+    def evaluate(self, acc, fairness, risk):
+        """
+        Avaliação simples baseada na sua tabela ISO-like
+        """
+
+        results = {}
+
+        # Desempenho (proxy de GAR/EER)
+        results["performance_ok"] = acc >= 0.95
+
+        # Fairness (<= 3%)
+        results["fairness_ok"] = fairness <= 0.03
+
+        # Risco (proxy)
+        results["risk_ok"] = risk <= 0.10
+
+        # Score geral
+        score = sum(results.values()) / len(results)
+
+        return results, score
 
 
 # =========================
@@ -72,18 +93,20 @@ class RiskEngine:
 # =========================
 class GovernanceEngine:
     def __init__(self, wp, wr, wf, wt, alpha, beta, gamma):
-        self.wp = wp  # peso performance
-        self.wr = wr  # peso risco
-        self.wf = wf  # peso fairness
-        self.wt = wt  # peso trust
+        self.wp = wp
+        self.wr = wr
+        self.wf = wf
+        self.wt = wt
 
-        self.alpha = alpha  # penalização bias
-        self.beta = beta    # penalização compliance
-        self.gamma = gamma  # penalização trust
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
+
+        self.compliance_engine = ComplianceEngine()
 
     def compute(self, performance, risk, fairness, trust):
         # =========================
-        # QUALIDADE BASE (MAUT)
+        # QUALIDADE BASE
         # =========================
         Q_total = (
             self.wp * performance
@@ -93,9 +116,8 @@ class GovernanceEngine:
         )
 
         # =========================
-        # PENALIZAÇÃO COM THRESHOLD
+        # PENALIZAÇÃO
         # =========================
-        # tolerância inicial (zona segura)
         bias_excess = max(0, fairness - 0.10)
         trust_excess = max(0, (1 - trust) - 0.10)
         risk_excess = max(0, risk - 0.10)
@@ -107,11 +129,20 @@ class GovernanceEngine:
         )
 
         # =========================
+        # COMPLIANCE (NOVO)
+        # =========================
+        compliance_results, compliance_score = self.compliance_engine.evaluate(
+            performance, fairness, risk
+        )
+
+        # penalização extra se não cumprir norma
+        compliance_penalty = (1 - compliance_score) * 0.2
+
+        # =========================
         # SCORE FINAL
         # =========================
-        IGA_final = Q_total - P
+        IGA_final = Q_total - P - compliance_penalty
 
-        # clamp
         IGA_final = max(-1.0, min(1.0, IGA_final))
 
-        return Q_total, P, IGA_final
+        return Q_total, P, compliance_penalty, IGA_final, compliance_results

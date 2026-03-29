@@ -3,7 +3,6 @@ import time
 import uuid
 import random
 import shutil
-import cv2
 import numpy as np
 import tensorflow as tf
 import gradio as gr
@@ -45,23 +44,28 @@ def new_user():
     return f"user_{uuid.uuid4().hex[:8]}"
 
 # =============================
-# XAI SIMPLES (TEXTO)
+# XAI
 # =============================
 class XAI:
     def explain(self, label, prob):
         conf = prob if label == "REAL" else (1 - prob)
 
         if conf > 0.85:
-            return f"Alta confiança ({conf:.2f}) — padrões faciais consistentes."
+            regiao = "região facial"
+            padrao = "alta consistência estrutural"
         elif conf > 0.65:
-            return f"Confiança moderada ({conf:.2f}) — possíveis artefatos sutis."
+            regiao = "bordas e fundo"
+            padrao = "possíveis artefatos sutis"
         else:
-            return f"Baixa confiança ({conf:.2f}) — ruído ou inconsistência visual."
+            regiao = "múltiplas regiões"
+            padrao = "inconsistência visual global"
+
+        return f"Modelo identifica com {conf:.2f} de confiança padrões em {regiao}, indicando {padrao}, classificando como {label}."
 
 xai = XAI()
 
 # =============================
-# LOAD IMAGES (FIX GRADIO)
+# LOAD IMAGES
 # =============================
 def load_images():
     real = [os.path.join(DATASET_PATH, "real", f) for f in os.listdir(os.path.join(DATASET_PATH, "real"))]
@@ -88,11 +92,11 @@ def process(selected, paths, labels, user_id, start_time):
     if not selected:
         return "⚠️ Selecione pelo menos 1 imagem", "", ""
 
-    acertos = 0
-    acertos_reais = 0
-    total = len(paths)
-
     rows = []
+
+    y_true = []
+    y_pred_ia = []
+    y_pred_h = []
 
     for i, path in enumerate(paths):
         img = Image.open(path).resize((IMG_SIZE, IMG_SIZE))
@@ -100,61 +104,80 @@ def process(selected, paths, labels, user_id, start_time):
         arr = np.expand_dims(arr, 0)
 
         prob = float(model.predict(arr, verbose=0)[0][0])
-        pred = 1 if prob > 0.5 else 0
-
-        human = 1 if i in selected else 0
+        pred_ia = 1 if prob > 0.5 else 0
+        pred_h = 1 if i in selected else 0
         gt = labels[i]
 
-        correct = (human == gt)
+        y_true.append(gt)
+        y_pred_ia.append(pred_ia)
+        y_pred_h.append(pred_h)
 
-        if correct:
-            acertos += 1
-        if gt == 1 and correct:
-            acertos_reais += 1
-
-        label_txt = "REAL" if pred == 1 else "FAKE"
+        label_txt = "REAL" if pred_ia == 1 else "FAKE"
         expl = xai.explain(label_txt, prob)
 
         rows.append({
             "img": i,
             "gt": gt,
-            "human": human,
-            "ia": pred,
+            "human": pred_h,
+            "ia": pred_ia,
             "prob": prob,
-            "correct": int(correct),
             "explanation": expl
         })
 
     # =============================
-    # DECISÃO DE ACESSO
+    # IA METRICS
     # =============================
-    acesso = (acertos_reais >= 2 and acertos >= 4)
+    acc_ia = np.mean(np.array(y_true) == np.array(y_pred_ia))
+    risk_ia = (1 - acc_ia) ** 2
+    fairness_ia = abs(sum(y_true) - sum(y_pred_ia)) / len(y_true)
+    trust_ia = acc_ia
+
+    Q_ia, P_ia, Pcomp_ia, IGA_ia, comp_ia = gov_engine.compute(
+        acc_ia, risk_ia, fairness_ia, trust_ia
+    )
 
     # =============================
-    # MÉTRICAS
+    # HUMAN METRICS
     # =============================
-    acc_h = acertos / total
-    acc_ia = np.mean([r["ia"] == r["gt"] for r in rows])
+    acc_h = np.mean(np.array(y_true) == np.array(y_pred_h))
+    risk_h = (1 - acc_h) ** 2
+    fairness_h = abs(sum(y_true) - sum(y_pred_h)) / len(y_true)
+    trust_h = acc_h
 
-    risk = (1 - acc_ia) ** 2
-    fairness = abs(sum([r["gt"] for r in rows]) - sum([r["ia"] for r in rows])) / total
-    trust = acc_ia
+    Q_h, P_h, Pcomp_h, IGA_h, comp_h = gov_engine.compute(
+        acc_h, risk_h, fairness_h, trust_h
+    )
 
-    Q, P, IGA = gov_engine.compute(acc_ia, risk, fairness, trust)
-
+    # =============================
+    # ACCESS RULE
+    # =============================
+    acesso = acc_h >= 0.66
     tempo = time.time() - start_time
 
     # =============================
-    # LOG CSV
+    # CSV LOG (COMPLETO)
     # =============================
     df = pd.DataFrame([{
         "user_id": user_id,
+
         "acc_h": acc_h,
+        "risk_h": risk_h,
+        "fairness_h": fairness_h,
+        "trust_h": trust_h,
+        "Q_h": Q_h,
+        "P_h": P_h,
+        "Pcomp_h": Pcomp_h,
+        "IGA_h": IGA_h,
+
         "acc_ia": acc_ia,
-        "risk": risk,
-        "fairness": fairness,
-        "trust": trust,
-        "IGA": IGA,
+        "risk_ia": risk_ia,
+        "fairness_ia": fairness_ia,
+        "trust_ia": trust_ia,
+        "Q_ia": Q_ia,
+        "P_ia": P_ia,
+        "Pcomp_ia": Pcomp_ia,
+        "IGA_ia": IGA_ia,
+
         "acesso": int(acesso),
         "tempo": tempo
     }])
@@ -162,46 +185,32 @@ def process(selected, paths, labels, user_id, start_time):
     df.to_csv(RESPONSES_FILE, mode="a", index=False, header=not os.path.exists(RESPONSES_FILE))
 
     # =============================
-    # TABELA PROFISSIONAL
+    # TABELA VISUAL
     # =============================
     tabela = """
-    <style>
-    .table-audit { width:100%; border-collapse:collapse; font-size:14px;}
-    .table-audit th, .table-audit td {border:1px solid #444; padding:8px; text-align:center;}
-    .table-audit th {background:#111; color:#fff;}
-    .ok {color:#00c853; font-weight:bold;}
-    .erro {color:#ff1744; font-weight:bold;}
-    .real {color:#00e676; font-weight:bold;}
-    .fake {color:#ff5252; font-weight:bold;}
-    </style>
-
-    <table class="table-audit">
+    <table style="width:100%; border-collapse:collapse;">
     <tr>
     <th>Foto</th>
-    <th>Classe Real</th>
-    <th>Seu Status</th>
-    <th>Status IA</th>
-    <th>Confiança</th>
-    <th>Justificativa</th>
+    <th>Classe</th>
+    <th>Humano</th>
+    <th>IA</th>
+    <th>Conf</th>
+    <th>Explicação</th>
     </tr>
     """
 
     for r in rows:
-        classe = "REAL" if r["gt"] == 1 else "FAKE"
-        classe_class = "real" if r["gt"] == 1 else "fake"
+        classe_icon = "🟢 REAL" if r["gt"] == 1 else "🔴 FAKE"
 
-        humano_ok = "OK" if r["human"] == r["gt"] else "ERRO"
-        humano_class = "ok" if humano_ok == "OK" else "erro"
-
-        ia_ok = "OK" if r["ia"] == r["gt"] else "ERRO"
-        ia_class = "ok" if ia_ok == "OK" else "erro"
+        humano_icon = "✅" if r["human"] == r["gt"] else "❌"
+        ia_icon = "🤖✅" if r["ia"] == r["gt"] else "🤖❌"
 
         tabela += f"""
         <tr>
             <td>{r['img']+1}</td>
-            <td class="{classe_class}">{"✅" if classe=='REAL' else "🚫"} {classe}</td>
-            <td class="{humano_class}">{"✅" if humano_ok=='OK' else "❌"} {humano_ok}</td>
-            <td class="{ia_class}">{"✅" if ia_ok=='OK' else "❌"} {ia_ok}</td>
+            <td>{classe_icon}</td>
+            <td>{humano_icon}</td>
+            <td>{ia_icon}</td>
             <td>{r['prob']:.2f}</td>
             <td>{r['explanation']}</td>
         </tr>
@@ -209,43 +218,34 @@ def process(selected, paths, labels, user_id, start_time):
 
     tabela += "</table>"
 
-    status = "🔓 ACESSO LIBERADO" if acesso else "🔒 ACESSO NEGADO"
-
+    # =============================
+    # RESUMO EXECUTIVO
+    # =============================
     resumo = f"""
-    ## {status}
+    ### RESULTADO
 
-    Acc Humano: {acc_h:.2f}  
-    Acc IA: {acc_ia:.2f}  
-    Risk: {risk:.2f}  
-    Fairness: {fairness:.2f}  
-    Trust: {trust:.2f}  
-    IGA: {IGA:.2f}  
-    Tempo: {tempo:.2f}s
+    🔐 Acesso: {"LIBERADO" if acesso else "NEGADO"}
+
+    👤 HUMANO  
+    Acc={acc_h:.2f} | IGA={IGA_h:.2f} | P={P_h:.2f} | Pcomp={Pcomp_h:.2f}
+
+    🤖 IA  
+    Acc={acc_ia:.2f} | IGA={IGA_ia:.2f} | P={P_ia:.2f} | Pcomp={Pcomp_ia:.2f}
+
+    ⏱ Tempo: {tempo:.2f}s
     """
 
     return resumo, tabela, df.to_html(index=False)
 
 # =============================
-# DASHBOARD
-# =============================
-def dashboard():
-    if not os.path.exists(RESPONSES_FILE):
-        return "Sem dados ainda"
-
-    df = pd.read_csv(RESPONSES_FILE)
-    return df.describe().to_html()
-
-# =============================
 # UI
 # =============================
-with gr.Blocks(title="AI Governance CAPTCHA") as demo:
+with gr.Blocks() as demo:
 
     user_id = gr.State(new_user())
     start_time = gr.State(time.time())
 
-    gr.Markdown("# 🏦 Sistema de Validação com Governança IA")
-
-    gallery = gr.Gallery(columns=3, height=400)
+    gallery = gr.Gallery(columns=3)
     labels = gr.State()
     paths = gr.State()
     selected = gr.State([])
@@ -253,11 +253,6 @@ with gr.Blocks(title="AI Governance CAPTCHA") as demo:
     output = gr.Markdown()
     table = gr.HTML()
     metrics = gr.HTML()
-    dash = gr.HTML()
-
-    btn_submit = gr.Button("Validar")
-    btn_new = gr.Button("Nova Rodada")
-    btn_dash = gr.Button("Atualizar Dashboard")
 
     def new_round():
         uid = new_user()
@@ -274,15 +269,15 @@ with gr.Blocks(title="AI Governance CAPTCHA") as demo:
     demo.load(new_round, outputs=[gallery, labels, paths, selected, user_id, start_time])
     gallery.select(select, inputs=selected, outputs=selected)
 
-    btn_submit.click(process,
+    gr.Button("Validar").click(
+        process,
         inputs=[selected, paths, labels, user_id, start_time],
         outputs=[output, table, metrics]
     )
 
-    btn_new.click(new_round,
+    gr.Button("Nova Rodada").click(
+        new_round,
         outputs=[gallery, labels, paths, selected, user_id, start_time]
     )
-
-    btn_dash.click(dashboard, outputs=dash)
 
 demo.launch(share=True, allowed_paths=[DATASET_PATH])
