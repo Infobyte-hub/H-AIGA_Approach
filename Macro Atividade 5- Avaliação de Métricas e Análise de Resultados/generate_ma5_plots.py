@@ -11,110 +11,110 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 df = pd.read_csv(os.path.join(RESULTS_DIR, "responses.csv"))
 
 # =============================
-# SANITY CHECK
+# PLOT 00 — RESUMO GERAL
 # =============================
-required_cols = ["IGA_h", "IGA_ia", "acc_ia", "trust_ia"]
-for col in required_cols:
-    if col not in df.columns:
-        raise ValueError(f"Coluna ausente no CSV: {col}")
+plt.figure()
+labels = ["Acc IA", "Acc Humano", "IGA IA", "IGA Humano"]
+values = [
+    df["acc_ia"].mean(),
+    df["acc_h"].mean(),
+    df["IGA_ia"].mean(),
+    df["IGA_h"].mean()
+]
+plt.bar(labels, values)
+plt.title("Resumo Geral do Sistema")
+plt.savefig(os.path.join(OUTPUT_DIR, "00_resumo_geral.png"))
+plt.close()
 
 # =============================
-# PLOT 1 — IGA IA vs HUMANO
+# PLOT 01 — IGA IA vs HUMANO
 # =============================
 plt.figure()
 plt.scatter(df["IGA_h"], df["IGA_ia"])
 plt.xlabel("IGA Humano")
 plt.ylabel("IGA IA")
-plt.title("Comparação de Governança: Humano vs IA")
 plt.savefig(os.path.join(OUTPUT_DIR, "01_iga_vs_ia.png"))
 plt.close()
 
 # =============================
-# PLOT 2 — OVERCONFIDENCE REAL
+# PLOT 02 — OVERCONFIDENCE
 # =============================
 plt.figure()
-
 erro = df["acc_ia"] < 1.0
 overconf = (df["trust_ia"] > 0.8) & erro
-
-plt.scatter(df["trust_ia"], df["acc_ia"], alpha=0.3, label="Geral")
-plt.scatter(df["trust_ia"][overconf], df["acc_ia"][overconf], label="Overconfidence crítico")
-
-plt.xlabel("Confiança (Trust IA)")
-plt.ylabel("Acurácia IA")
-plt.title("Overconfidence Detection")
-
-plt.legend()
+plt.scatter(df["trust_ia"], df["acc_ia"], alpha=0.3)
+plt.scatter(df["trust_ia"][overconf], df["acc_ia"][overconf])
 plt.savefig(os.path.join(OUTPUT_DIR, "02_overconfidence.png"))
 plt.close()
 
 # =============================
-# PLOT 3 — TEMPO vs IGA HUMANO
+# PLOT 03 — TEMPO vs IGA
 # =============================
 plt.figure()
 plt.scatter(df["tempo"], df["IGA_h"])
-plt.xlabel("Tempo")
-plt.ylabel("IGA Humano")
-plt.title("Tempo vs Governança Humana")
 plt.savefig(os.path.join(OUTPUT_DIR, "03_tempo_vs_iga.png"))
 plt.close()
 
 # =============================
-# PLOT 4 — PENALIZAÇÃO vs IGA
+# PLOT 04 — PENALIZAÇÃO vs IGA
 # =============================
 plt.figure()
 plt.scatter(df["P_ia"], df["IGA_ia"])
-plt.xlabel("Penalização (P IA)")
-plt.ylabel("IGA IA")
-plt.title("Impacto da Penalização Técnica")
 plt.savefig(os.path.join(OUTPUT_DIR, "04_penalizacao_vs_iga.png"))
 plt.close()
 
 # =============================
-# PLOT 5 — FAIRNESS vs RISK
+# PLOT 05 — FAIRNESS vs RISK
 # =============================
 plt.figure()
 plt.scatter(df["fairness_ia"], df["risk_ia"])
-plt.xlabel("Fairness")
-plt.ylabel("Risk")
-plt.title("Trade-off entre Equidade e Risco")
 plt.savefig(os.path.join(OUTPUT_DIR, "05_fairness_vs_risk.png"))
 plt.close()
 
 # =============================
-# PLOT 6 — DISTRIBUIÇÃO IGA
+# PLOT 06 — DISTRIBUIÇÃO IGA
 # =============================
 plt.figure()
-plt.hist(df["IGA_ia"], bins=10, alpha=0.5, label="IA")
-plt.hist(df["IGA_h"], bins=10, alpha=0.5, label="Humano")
-plt.xlabel("IGA")
-plt.ylabel("Frequência")
-plt.title("Distribuição de Governança")
-plt.legend()
+plt.hist(df["IGA_ia"], bins=10, alpha=0.5)
+plt.hist(df["IGA_h"], bins=10, alpha=0.5)
 plt.savefig(os.path.join(OUTPUT_DIR, "06_distribuicao_iga.png"))
 plt.close()
 
 # =============================
-# PLOT 7 — GAP IA vs HUMANO
+# PLOT 07 — GAP IA vs HUMANO
 # =============================
 plt.figure()
 gap = df["IGA_h"] - df["IGA_ia"]
 plt.hist(gap, bins=10)
-plt.xlabel("Diferença (Humano - IA)")
-plt.title("Gap de Governança")
 plt.savefig(os.path.join(OUTPUT_DIR, "07_gap_ia_humano.png"))
 plt.close()
 
 # =============================
-# PLOT 8 — COMPLIANCE (SE EXISTIR)
+# PLOT 08 — COMPLIANCE (SE EXISTIR)
 # =============================
 if "Pcomp_ia" in df.columns:
     plt.figure()
     plt.scatter(df["Pcomp_ia"], df["IGA_ia"])
-    plt.xlabel("Penalização Normativa (Pcomp IA)")
-    plt.ylabel("IGA IA")
-    plt.title("Impacto da Não Conformidade Normativa")
     plt.savefig(os.path.join(OUTPUT_DIR, "08_compliance_vs_iga.png"))
     plt.close()
 
-print("✅ Todos os plots gerados com sucesso.")
+# =============================
+# PLOT 09 — DECISÃO
+# =============================
+plt.figure()
+counts = df["acesso"].value_counts()
+plt.pie([counts.get(1,0), counts.get(0,0)], labels=["Liberado","Negado"], autopct='%1.1f%%')
+plt.savefig(os.path.join(OUTPUT_DIR, "09_decisao.png"))
+plt.close()
+
+# =============================
+# PLOT 10 — PERFORMANCE vs GOVERNANÇA
+# =============================
+plt.figure()
+plt.scatter(df["acc_ia"], df["IGA_ia"])
+plt.xlabel("Performance IA")
+plt.ylabel("IGA IA")
+plt.savefig(os.path.join(OUTPUT_DIR, "10_perf_vs_governance.png"))
+plt.close()
+
+print("✅ 10 plots gerados com sucesso.")
