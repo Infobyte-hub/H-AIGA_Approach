@@ -25,3 +25,9 @@ $IGA_{final} = Q_{total} - (\alpha B + \beta C + \gamma T)$
 4. MA4: Execução de Testes (V&V)
 5. MA5: Avaliação de Métricas e IGA
 6. MA6: Governança e Monitoramento
+
+### Acknowledgments & Ethics
+- Este experimento utiliza um subconjunto do conjunto de dados (dataset) '140k Real and Fake Faces' (disponibilizado via Kaggle por xhlulu).
+- Faces Reais: Oriundas do dataset NVIDIA FFHQ (Flickr-Faces-HQ).
+- Faces Sintéticas: Geradas por meio do algoritmo NVIDIA StyleGAN.
+O uso destes dados é estritamente destinado à pesquisa acadêmica e à avaliação de métricas de governança de IA, em conformidade com as licenças Creative Commons originais. Informamos que não é realizada nenhuma identificação pessoal, coleta de dados sensíveis ou perfilamento biométrico dos indivíduos presentes nas imagens ou dos participantes do teste.
