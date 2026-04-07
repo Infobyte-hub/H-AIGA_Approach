@@ -24,7 +24,7 @@ experiments/ma3/checkpoints/
 # Datasets (NÃO versionar)
 # =========================
 data/raw/
-dataset-subsampled/
+#dataset-subsampled/
 testes_ma3/fake/
 testes_ma3/real/
 # Amostras locais sensíveis (não versionar)
