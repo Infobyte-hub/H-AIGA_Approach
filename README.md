@@ -1,6 +1,6 @@
 # Integrated Responsible AI Assurance Framework (IRAAF)
 
-Este repositório contém a implementação e os resultados do framework de avaliação normativa para componentes de IA, com foco em reconhecimento facial e detecção de faces sintéticas.
+Este repositório contém a implementação e os resultados da abordagem de avaliação normativa para componentes de IA, com foco em reconhecimento facial e detecção de faces sintéticas.
 
 ## 🚀 Visão Geral
 O projeto operacionaliza seis macro atividades de governança, integrando métricas técnicas (Acurácia, EER) com indicadores de responsabilidade (IGA - Índice de Governança Algorítmica).
